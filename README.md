@@ -4,6 +4,8 @@
 
 > Testing scripts for phase 1 of EBSI V2 Protocol Selection
 
+## Disclaimer - This is an experimental tool, for technical governance exploration and it is not part of EBSI releases.
+
 ## Table of Contents
 
 1. [Disclaimer](#Disclaimer)
@@ -12,9 +14,6 @@
 4. [Usage](#Usage)
 5. [Run](#Run)
 6. [Licensing](#Licensing)
-
-## Disclaimer
-This is an experimental tool, for technical governance exploration and it is not part of EBSI releases.
 
 ## Getting started
 
