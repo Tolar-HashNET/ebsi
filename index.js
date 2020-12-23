@@ -4,6 +4,16 @@ const crypto = require("crypto");
 const ethers = require("ethers");
 const fs = require("fs");
 
+var Web3 = require('@dreamfactoryhr/web3t');
+let web3 = new Web3("http://127.0.0.1:8083");
+
+const {
+  pk1,
+  address1,
+  pk2,
+  address2
+} = require("./priv_keys.js");
+
 /* eslint no-console: ["error", { allow: ["warn", "error"] }] */
 const {
   notary,
@@ -81,40 +91,77 @@ async function getChainId() {
 }
 
 async function buildTxNotaryWithEthers(hash) {
-  const provider = new ethers.providers.JsonRpcProvider(
-    finalConfig.besuRPCNode
-  );
-  const wallet = ethers.Wallet.createRandom();
-  const iface = new ethers.utils.Interface(notary.abi);
-  const ethersChainId = ethers.BigNumber.from(chainId).toNumber();
-  const transaction = {
-    nonce: await provider.getTransactionCount(wallet.address),
-    gasLimit: 221000,
-    gasPrice: 0,
-    from: wallet.address,
-    to: notary.address,
-    value: 0,
-    data: iface.encodeFunctionData("addRecord", [hash]),
-    chainId: ethersChainId,
-  };
-  return wallet.signTransaction(transaction);
+  // const provider = new ethers.providers.JsonRpcProvider(
+  //   finalConfig.besuRPCNode
+  // );
+  // const wallet = ethers.Wallet.createRandom();
+  // const iface = new ethers.utils.Interface(notary.abi);
+  // const ethersChainId = ethers.BigNumber.from(chainId).toNumber();
+  // const transaction = {
+  //   nonce: await provider.getTransactionCount(wallet.address),
+  //   gasLimit: 221000,
+  //   gasPrice: 0,
+  //   from: wallet.address,
+  //   to: notary.address,
+  //   value: 0,
+  //   data: iface.encodeFunctionData("addRecord", [hash]),
+  //   chainId: ethersChainId,
+  // };
+  // return wallet.signTransaction(transaction);
+  let receiver = web3.tolar.accounts.privateKeyToAccount(pk2);
+  let sender = web3.tolar.accounts.privateKeyToAccount(pk1);
+
+  console.log("called for hash..");
+  console.log(hash);
+
+  let nonce = await web3.tolar.getNonce(sender.address);
+  console.log(nonce)
+  
+        let tx = {
+            sender_address: sender.address,
+            receiver_address: receiver.address,
+            amount: 0,
+            gas: 25000,
+            gas_price: 1,
+            data: `${hash}\n${new Date().toLocaleString("en-Gb")}\n`,
+            nonce,
+        };
+        
+  // let signedTx = await sender.signTransaction(tx, sender.privateKey);
+  return sender.signTransaction(tx, sender.privateKey);
+  // console.log("sending tx...");
+  // console.log(signedTx);
+  // return web3.tolar.sendSignedTransaction(signedTx);
 }
 
 async function notarizeHash(hsh) {
-  const sgnTx = await buildTxNotaryWithEthers(hsh);
+  const signedTx = await buildTxNotaryWithEthers(hsh);
   try {
-    const response = await callBesu(
-      "eth_sendRawTransaction",
-      [sgnTx],
-      besuToken
-    );
-    if (response.status === 200) {
-      const txId = response.body.result;
-      await callBesu("eth_getTransactionReceipt", [txId], besuToken);
-      return true;
-    }
-    console.error(`error sending hash:${response.status}`);
-    console.error(response);
+    // const response = await callBesu(
+    //   "eth_sendRawTransaction",
+    //   [sgnTx],
+    //   besuToken
+    // );
+    // if (response.status === 200) {
+    //   const txId = response.body.result;
+    //   await callBesu("eth_getTransactionReceipt", [txId], besuToken);
+    //   return true;
+    // }
+    // console.error(`error sending hash:${response.status}`);
+    // console.error(response);
+
+    console.log("sending tx...");
+    console.log(signedTx);
+    let txHash = await web3.tolar.sendSignedTransaction(signedTx);
+    console.log("txHash...");
+    console.log(txHash);
+
+    let txReceipt = await web3.tolar.getTransactionReceipt(txHash);
+    console.log("receipt...");
+    console.log(txReceipt);
+    
+    return true;
+
   } catch (error) {
     console.error(`error calling besu auth:${error}`);
   }
@@ -194,8 +241,8 @@ async function phase1Scripts(deleteFiles) {
   let testResult = true;
   let testReport = "";
   // 1. Login to the ledger
-  await getChainId();
-  await besuLogin();
+  //await getChainId();
+  //await besuLogin();
   // 2. generate test files
   const filesList = [];
   const fileNames = [];
@@ -236,6 +283,8 @@ async function phase1Scripts(deleteFiles) {
   }
 
   await new Promise((r) => setTimeout(r, MAX_PROMISE_TIMEOUT)); // wait 10 seconds for the ledger to generate the blocks
+
+  return 0;
 
   // 4. Check records
   startDate = new Date();
@@ -280,3 +329,4 @@ async function phase1Scripts(deleteFiles) {
 }
 
 phase1Scripts(testParams.delete_files);
+

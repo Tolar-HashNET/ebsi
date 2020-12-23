@@ -3,7 +3,7 @@ require("dotenv").config();
 const { abi } = require("./sc-notary");
 
 const testParams = {
-  file_nb: 10,
+  file_nb: 1,
   min_size: 10, // 10 kb
   max_size: 500, // 500kb
   delete_files: true,
@@ -28,6 +28,12 @@ const config = {
     besuRPCNode: "https://www.intebsi.xyz/jsonrpc",
   },
 };
+
+process.env.EBSI_ENV="development"
+process.env.BESU_ADDRESS_NOTARY="0x21b38942aA9BC992482627f63814Ffa06DA7e500"
+
+process.env.TEST_APP_NAME="ebsi-wallet"
+process.env.TEST_APP_PRIVATE_KEY="3d07a3077eb0139f038864bf6b91cf273d425721460ec394d30499b798279baa"
 
 if (!process.env.EBSI_ENV) throw new Error("EBSI_ENV is not defined");
 if (!process.env.TEST_APP_NAME) throw new Error("TEST_APP_NAME is not defined");
