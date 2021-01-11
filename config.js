@@ -3,7 +3,7 @@ require("dotenv").config();
 const { abi } = require("./sc-notary");
 
 const testParams = {
-  file_nb: 1,
+  file_nb: 10,
   min_size: 10, // 10 kb
   max_size: 500, // 500kb
   delete_files: true,

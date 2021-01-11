@@ -7,11 +7,10 @@ const fs = require("fs");
 var Web3 = require('@dreamfactoryhr/web3t');
 let web3 = new Web3("http://127.0.0.1:8083");
 
+var tx_hashes = [];
+
 const {
-  pk1,
-  address1,
-  pk2,
-  address2
+  priv_keys
 } = require("./priv_keys.js");
 
 /* eslint no-console: ["error", { allow: ["warn", "error"] }] */
@@ -62,22 +61,33 @@ function createRandomFile(name, size = 1024, writeFile = true) {
   return { data, hash };
 }
 
-async function checkHash(h) {
+async function checkHash(h, txHash) {
   let hash = h;
   if (h.startsWith("0x")) {
     hash = h.substring(2);
   }
 
-  const getData = async (uri) => {
-    try {
-      const response = await request.get(uri);
-      return response.body;
-    } catch (error) {
-      console.error(error);
-      return null;
-    }
-  };
-  return getData(`/timestamp/v1/hashes/${hash}`);
+  // const getData = async (uri) => {
+  //   try {
+  //     const response = await request.get(uri);
+  //     return response.body;
+  //   } catch (error) {
+  //     console.error(error);
+  //     return null;
+  //   }
+  // };
+  // return getData(`/timestamp/v1/hashes/${hash}`);
+
+  try {
+    let tx = await web3.tolar.getTransaction(txHash);
+    console.log("TX:");
+    console.log(tx);
+    return tx;
+  } catch (error) {
+    console.log(error);
+    return null;
+  }
+
 }
 
 async function getChainId() {
@@ -90,7 +100,7 @@ async function getChainId() {
   }
 }
 
-async function buildTxNotaryWithEthers(hash) {
+async function buildTxNotaryWithEthers(hash, index) {
   // const provider = new ethers.providers.JsonRpcProvider(
   //   finalConfig.besuRPCNode
   // );
@@ -108,14 +118,22 @@ async function buildTxNotaryWithEthers(hash) {
   //   chainId: ethersChainId,
   // };
   // return wallet.signTransaction(transaction);
-  let receiver = web3.tolar.accounts.privateKeyToAccount(pk2);
-  let sender = web3.tolar.accounts.privateKeyToAccount(pk1);
+  let size = priv_keys.length
+  console.log("VELICINA")
+  console.log(size)
+  console.log(priv_keys[0])
+  console.log(priv_keys[1])
+  console.log("EOF")
+  let sender = web3.tolar.accounts.privateKeyToAccount(priv_keys[index % size]);
+  let receiver = web3.tolar.accounts.privateKeyToAccount(priv_keys[(index + 1) % size]);
 
   console.log("called for hash..");
   console.log(hash);
 
   let nonce = await web3.tolar.getNonce(sender.address);
   console.log(nonce)
+
+  //d.getUTCMilliseconds()
   
         let tx = {
             sender_address: sender.address,
@@ -123,7 +141,7 @@ async function buildTxNotaryWithEthers(hash) {
             amount: 0,
             gas: 25000,
             gas_price: 1,
-            data: `${hash}\n${new Date().toLocaleString("en-Gb")}\n`,
+            data: `${hash}|${Date.now()}`,
             nonce,
         };
         
@@ -134,8 +152,8 @@ async function buildTxNotaryWithEthers(hash) {
   // return web3.tolar.sendSignedTransaction(signedTx);
 }
 
-async function notarizeHash(hsh) {
-  const signedTx = await buildTxNotaryWithEthers(hsh);
+async function notarizeHash(hsh, index) {
+  const signedTx = await buildTxNotaryWithEthers(hsh, index);
   try {
     // const response = await callBesu(
     //   "eth_sendRawTransaction",
@@ -153,6 +171,7 @@ async function notarizeHash(hsh) {
     console.log("sending tx...");
     console.log(signedTx);
     let txHash = await web3.tolar.sendSignedTransaction(signedTx);
+    tx_hashes.push(txHash);
     console.log("txHash...");
     console.log(txHash);
 
@@ -225,7 +244,10 @@ function checkHashes(ans) {
       result = "Error - did not received answer from Timestamp API\n";
     } // check timestamp ordering:
     else {
-      const newDate = Date.parse(r.timestamp);
+      const utcMilliseconds = r.data.split('|')[1];
+      console.log("miliss");
+      console.log(utcMilliseconds);
+      const newDate = Date.parse(utcMilliseconds);
       if (prevDate > newDate) {
         result += "Error - timestamp should be increasing: \n";
       }
@@ -255,18 +277,28 @@ async function phase1Scripts(deleteFiles) {
     filesList.push(createRandomFile(fname, fsize * 1024));
     fileNames.push(fname);
   }
+
+  let pk_size = priv_keys.length
+
   // 3. Notarize hashes
   let startDate = new Date();
   let nextStep = 0;
   let results = [];
   for (i = 0; i < testParams.file_nb; i += 1) {
-    results.push(notarizeHash(filesList[i].hash));
+    results.push(notarizeHash(filesList[i].hash, i));
     nextStep = displayProgress(
       i,
       testParams.file_nb,
       nextStep,
       "processing files..."
     );
+    //if (i > 0 && ((i + 1) % pk_size == 0)) {
+    if (results.length % pk_size == 0) {
+      console.log("TUUU")
+      await Promise.all(results);
+      results = []
+      console.log("SAAAM");
+    }
   }
   await Promise.all(results);
   let endDate = new Date();
@@ -284,7 +316,9 @@ async function phase1Scripts(deleteFiles) {
 
   await new Promise((r) => setTimeout(r, MAX_PROMISE_TIMEOUT)); // wait 10 seconds for the ledger to generate the blocks
 
-  return 0;
+  console.log("GOTOVO");
+  console.log(tx_hashes);
+  console.log("==========");
 
   // 4. Check records
   startDate = new Date();
@@ -292,7 +326,7 @@ async function phase1Scripts(deleteFiles) {
   nextStep = 0;
   results = [];
   for (i = 0; i < testParams.file_nb; i += 1) {
-    const res = checkHash(filesList[i].hash);
+    const res = checkHash(filesList[i].hash, tx_hashes[i]);
     results.push(res);
     nextStep = displayProgress(
       i,
@@ -301,6 +335,7 @@ async function phase1Scripts(deleteFiles) {
       "processing hashes..."
     );
   }
+
   const cash = checkHashes(await Promise.all(results));
   if (cash && cash.length > 0) {
     testResult = false;
