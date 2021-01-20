@@ -67,30 +67,24 @@ async function checkHash(h, txHash) {
     hash = h.substring(2);
   }
 
-  // const getData = async (uri) => {
-  //   try {
-  //     const response = await request.get(uri);
-  //     return response.body;
-  //   } catch (error) {
-  //     console.error(error);
-  //     return null;
-  //   }
-  // };
-  // return getData(`/timestamp/v1/hashes/${hash}`);
-
-  try {
-    let tx = await web3.tolar.getTransaction(txHash);
-    console.log("TX:");
-    console.log(tx);
-    return tx;
-  } catch (error) {
-    console.log(error);
-    return null;
-  }
-
+  const getData = async (uri) => {
+    try {
+      const response = await request.get(uri);
+      console.log("------");
+      console.log(hash);
+      console.log(txHash);
+      console.log(response.text);
+      return response.text;
+    } catch (error) {
+      console.error(error);
+      return null;
+    }
+  };
+  return getData(`/timestamp/v1/hashes/${hash}`);
 }
 
 async function getChainId() {
+  // does not apply for tolar
   const response = await callBesu("eth_chainId", [], null);
   if (response.status === 200) {
     chainId = response.body.result;
@@ -101,43 +95,18 @@ async function getChainId() {
 }
 
 async function buildTxNotaryWithEthers(hash, index) {
-  // const provider = new ethers.providers.JsonRpcProvider(
-  //   finalConfig.besuRPCNode
-  // );
-  // const wallet = ethers.Wallet.createRandom();
-  // const iface = new ethers.utils.Interface(notary.abi);
-  // const ethersChainId = ethers.BigNumber.from(chainId).toNumber();
-  // const transaction = {
-  //   nonce: await provider.getTransactionCount(wallet.address),
-  //   gasLimit: 221000,
-  //   gasPrice: 0,
-  //   from: wallet.address,
-  //   to: notary.address,
-  //   value: 0,
-  //   data: iface.encodeFunctionData("addRecord", [hash]),
-  //   chainId: ethersChainId,
-  // };
-  // return wallet.signTransaction(transaction);
   let size = priv_keys.length
-  console.log("VELICINA")
-  console.log(size)
-  console.log(priv_keys[0])
-  console.log(priv_keys[1])
-  console.log("EOF")
   let sender = web3.tolar.accounts.privateKeyToAccount(priv_keys[index % size]);
-  let receiver = web3.tolar.accounts.privateKeyToAccount(priv_keys[(index + 1) % size]);
 
   console.log("called for hash..");
   console.log(hash);
 
   let nonce = await web3.tolar.getNonce(sender.address);
   console.log(nonce)
-
-  //d.getUTCMilliseconds()
   
         let tx = {
             sender_address: sender.address,
-            receiver_address: receiver.address,
+            receiver_address: notary.address,
             amount: 0,
             gas: 25000,
             gas_price: 1,
@@ -145,44 +114,29 @@ async function buildTxNotaryWithEthers(hash, index) {
             nonce,
         };
         
-  // let signedTx = await sender.signTransaction(tx, sender.privateKey);
   return sender.signTransaction(tx, sender.privateKey);
-  // console.log("sending tx...");
-  // console.log(signedTx);
-  // return web3.tolar.sendSignedTransaction(signedTx);
 }
 
 async function notarizeHash(hsh, index) {
   const signedTx = await buildTxNotaryWithEthers(hsh, index);
   try {
-    // const response = await callBesu(
-    //   "eth_sendRawTransaction",
-    //   [sgnTx],
-    //   besuToken
-    // );
-    // if (response.status === 200) {
-    //   const txId = response.body.result;
-    //   await callBesu("eth_getTransactionReceipt", [txId], besuToken);
-    //   return true;
-    // }
-    // console.error(`error sending hash:${response.status}`);
-    // console.error(response);
-
-    console.log("sending tx...");
+    console.log("sending tx...");    
+    console.log(index);
     console.log(signedTx);
     let txHash = await web3.tolar.sendSignedTransaction(signedTx);
     tx_hashes.push(txHash);
     console.log("txHash...");
+    console.log(index);
     console.log(txHash);
 
     let txReceipt = await web3.tolar.getTransactionReceipt(txHash);
     console.log("receipt...");
+    console.log(index);
     console.log(txReceipt);
     
     return true;
-
   } catch (error) {
-    console.error(`error calling besu auth:${error}`);
+    console.error(`error sending tx / getting tx receipt: ${error}`);
   }
 
   return false;
@@ -244,10 +198,7 @@ function checkHashes(ans) {
       result = "Error - did not received answer from Timestamp API\n";
     } // check timestamp ordering:
     else {
-      const utcMilliseconds = r.data.split('|')[1];
-      console.log("miliss");
-      console.log(utcMilliseconds);
-      const newDate = Date.parse(utcMilliseconds);
+      const newDate = Date.parse(r.timestamp);
       if (prevDate > newDate) {
         result += "Error - timestamp should be increasing: \n";
       }
@@ -263,6 +214,7 @@ async function phase1Scripts(deleteFiles) {
   let testResult = true;
   let testReport = "";
   // 1. Login to the ledger
+  // does not apply for tolar
   //await getChainId();
   //await besuLogin();
   // 2. generate test files
@@ -294,10 +246,8 @@ async function phase1Scripts(deleteFiles) {
     );
     //if (i > 0 && ((i + 1) % pk_size == 0)) {
     if (results.length % pk_size == 0) {
-      console.log("TUUU")
       await Promise.all(results);
       results = []
-      console.log("SAAAM");
     }
   }
   await Promise.all(results);
@@ -310,13 +260,18 @@ async function phase1Scripts(deleteFiles) {
   // 3.1 Delete files
   if (deleteFiles) {
     for (i = 0; i < testParams.file_nb; i += 1) {
-      fs.unlinkSync(fileNames[i]);
+      try { 
+        fs.unlinkSync(fileNames[i]);
+      } catch(error) {
+        console.log(`Error deleting file: ${error}`);
+      }
     }
   }
 
   await new Promise((r) => setTimeout(r, MAX_PROMISE_TIMEOUT)); // wait 10 seconds for the ledger to generate the blocks
 
-  console.log("GOTOVO");
+
+  console.log("Finished sending txs");
   console.log(tx_hashes);
   console.log("==========");
 
@@ -358,7 +313,8 @@ async function phase1Scripts(deleteFiles) {
   testReport += `Protocol Reading Time (average): ${displayTiming(
     rDuration / testParams.file_nb
   )}`;
-  fs.writeFile("testReport.txt", testReport, function ferr2(err) {
+  console.log(testReport);
+  fs.writeFileSync("testReport.txt", testReport, function ferr2(err) {
     if (err) console.error(err);
   });
 }

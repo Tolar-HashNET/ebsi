@@ -27,13 +27,19 @@ const config = {
     url: process.env.EBSI_API,
     besuRPCNode: "https://www.intebsi.xyz/jsonrpc",
   },
+  tolar_staging: {
+    url: "http://116.203.236.208:8080", // staging block explorer
+  }
 };
 
-process.env.EBSI_ENV="development"
-process.env.BESU_ADDRESS_NOTARY="0x21b38942aA9BC992482627f63814Ffa06DA7e500"
+
+
+
+process.env.EBSI_ENV="tolar_staging"
+process.env.BESU_ADDRESS_NOTARY="54bd18286eb02f683c622231e925a11c13d147f67ea1a293c9"
 
 process.env.TEST_APP_NAME="ebsi-wallet"
-process.env.TEST_APP_PRIVATE_KEY="3d07a3077eb0139f038864bf6b91cf273d425721460ec394d30499b798279baa"
+process.env.TEST_APP_PRIVATE_KEY="473198b636fac330b3a5eec0198462e96f260bbb425b944f5b4766e1e3e4b1dc"
 
 if (!process.env.EBSI_ENV) throw new Error("EBSI_ENV is not defined");
 if (!process.env.TEST_APP_NAME) throw new Error("TEST_APP_NAME is not defined");

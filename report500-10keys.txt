@@ -1,0 +1,8 @@
+Testing completed successfully
+
+Testing Date: 1/20/2021, 1:31:56 AM
+Testing parameters: 500 files of size [10-500]kb
+Protocol Writing Time (total): 0h 29m 5s 681ms 
+Protocol Writing Time (average): 3s 491ms
+Protocol Reading Time (total): 2s 435ms
+Protocol Reading Time (average): 5 ms
